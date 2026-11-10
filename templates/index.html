@@ -1,0 +1,374 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TeamTrace | Project Tracker</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <h2 class="logo">Team<span>Trace</span></h2>
+
+        <p class="side-label">WORKSPACE</p>
+
+        <a href="/" class="nav active">▦ &nbsp; Overview</a>
+        <a href="#graphs" class="nav">⌘ &nbsp; Contribution Graph</a>
+        <a href="#members" class="nav">♙ &nbsp; Team Members</a>
+        <a href="#history" class="nav">◷ &nbsp; Activity History</a>
+
+        <div class="sidebar-bottom">
+            <p>PROJECT TRACKER</p>
+            <small>TeamTrace MVP 1.0</small>
+        </div>
+    </aside>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+        <header class="topbar">
+            <div>
+                <h1>Project Overview</h1>
+                <p>Track your team's work and project progress.</p>
+            </div>
+
+            <div class="profile">TT</div>
+        </header>
+
+
+        <!-- FLASH MESSAGES -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="message">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+
+        <!-- STATISTICS -->
+        <section class="stats">
+
+            <div class="stat-card">
+                <p>Total Members</p>
+                <h2>{{ total_members }}</h2>
+                <span>Active team members</span>
+            </div>
+
+            <div class="stat-card">
+                <p>Total Contributions</p>
+                <h2>{{ total_contributions }}</h2>
+                <span>Recorded activities</span>
+            </div>
+
+            <div class="stat-card">
+                <p>Project Status</p>
+                <h2 class="status">Active</h2>
+                <span>Currently in progress</span>
+            </div>
+
+        </section>
+
+
+        <!-- ADD FORMS -->
+        <section class="forms">
+
+            <div class="panel">
+                <h3>Add Team Member</h3>
+                <p class="muted">Add a person to your project.</p>
+
+                <form action="/add-member" method="POST">
+                    <input
+                        type="text"
+                        name="name"
+                        placeholder="Enter member name"
+                        required
+                    >
+
+                    <button type="submit">+ Add Member</button>
+                </form>
+            </div>
+
+
+            <div class="panel">
+                <h3>Record Contribution</h3>
+                <p class="muted">Record what a member has completed.</p>
+
+                {% if members %}
+
+                <form action="/add-contribution" method="POST">
+
+                    <select name="member_id" required>
+                        <option value="">Select Member</option>
+
+                        {% for member in members %}
+                            <option value="{{ member.id }}">
+                                {{ member.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+
+                    <input
+                        type="text"
+                        name="title"
+                        placeholder="Contribution title"
+                        required
+                    >
+
+                    <textarea
+                        name="description"
+                        placeholder="Describe the work..."
+                        rows="3"
+                    ></textarea>
+
+                    <select name="category">
+                        <option value="Feature">Feature</option>
+                        <option value="Bug Fix">Bug Fix</option>
+                        <option value="Documentation">Documentation</option>
+                        <option value="Research">Research</option>
+                        <option value="Other">Other</option>
+                    </select>
+
+                    <button type="submit">+ Save Contribution</button>
+
+                </form>
+
+                {% else %}
+                    <p class="empty">Add a team member first.</p>
+                {% endif %}
+            </div>
+
+        </section>
+
+
+        <!-- GRAPHS -->
+        <section id="graphs">
+
+            <div class="section-heading">
+                <h2>Contribution Analytics</h2>
+                <p>Visual representation of team activity.</p>
+            </div>
+
+            <div class="charts">
+
+                <div class="panel chart-panel">
+                    <h3>Member Contributions</h3>
+                    <p class="muted">Total work recorded by each member.</p>
+
+                    <div class="chart-container">
+                        <canvas id="memberChart"></canvas>
+                    </div>
+                </div>
+
+
+                <div class="panel chart-panel">
+                    <h3>Project Activity</h3>
+                    <p class="muted">Contributions over the last 7 days.</p>
+
+                    <div class="chart-container">
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- TEAM MEMBERS -->
+        <section id="members" class="panel history-panel">
+
+            <h2>Team Members</h2>
+            <p class="muted">Contribution summary of every member.</p>
+
+            {% if member_counts %}
+                <div class="member-list">
+
+                    {% for member in member_counts %}
+                    <div class="member-row">
+                        <div class="member-avatar">
+                            {{ member.name[0] | upper }}
+                        </div>
+
+                        <div class="member-name">
+                            <strong>{{ member.name }}</strong>
+                            <small>Team member</small>
+                        </div>
+
+                        <strong class="count">
+                            {{ member.total }} contributions
+                        </strong>
+                    </div>
+                    {% endfor %}
+
+                </div>
+            {% else %}
+                <p class="empty">No team members added yet.</p>
+            {% endif %}
+
+        </section>
+
+
+        <!-- CONTRIBUTION HISTORY -->
+        <section id="history" class="panel history-panel">
+
+            <h2>Recent Activity</h2>
+            <p class="muted">Latest changes recorded in your project.</p>
+
+            {% if contributions %}
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Member</th>
+                            <th>Contribution</th>
+                            <th>Category</th>
+                            <th>Date & Time</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for item in contributions %}
+                        <tr>
+                            <td>{{ item.name }}</td>
+
+                            <td>
+                                <strong>{{ item.title }}</strong>
+                                <small class="description">
+                                    {{ item.description }}
+                                </small>
+                            </td>
+
+                            <td>
+                                <span class="category">
+                                    {{ item.category }}
+                                </span>
+                            </td>
+
+                            <td>{{ item.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+
+                </table>
+            </div>
+
+            {% else %}
+                <p class="empty">No contributions recorded yet.</p>
+            {% endif %}
+
+        </section>
+
+        <footer>
+            TeamTrace © 2026 | Project Contribution Tracker
+        </footer>
+
+    </main>
+</div>
+
+
+<!-- GRAPH JAVASCRIPT -->
+<script>
+
+    const memberLabels = {{ member_counts | map(attribute='name') | list | tojson }};
+    const memberValues = {{ member_counts | map(attribute='total') | list | tojson }};
+
+    const dateLabels = {{ date_labels | tojson }};
+    const dailyValues = {{ daily_counts | tojson }};
+
+
+    // MEMBER CONTRIBUTION BAR CHART
+    new Chart(document.getElementById("memberChart"), {
+
+        type: "bar",
+
+        data: {
+            labels: memberLabels,
+
+            datasets: [{
+                label: "Contributions",
+                data: memberValues,
+                backgroundColor: "#7066e0",
+                borderRadius: 7
+            }]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            }
+        }
+    });
+
+
+    // PROJECT ACTIVITY LINE GRAPH
+    new Chart(document.getElementById("activityChart"), {
+
+        type: "line",
+
+        data: {
+            labels: dateLabels,
+
+            datasets: [{
+                label: "Contributions",
+                data: dailyValues,
+                borderColor: "#18a58b",
+                backgroundColor: "rgba(24,165,139,0.12)",
+                fill: true,
+                tension: 0.35,
+                pointRadius: 4
+            }]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            }
+        }
+    });
+
+</script>
+
+</body>
+</html>
