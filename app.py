@@ -129,6 +129,19 @@ def index():
         LIMIT 20
     """).fetchall()
 
+    # GITHUB CONTRIBUTION SUMMARY
+    github_member_counts = conn.execute("""
+        SELECT
+            COALESCE(NULLIF(author_login, ''), author, 'Unknown')
+            AS contributor,
+            COUNT(*) AS total_commits,
+            MAX(committed_at) AS last_commit
+        FROM github_commits
+        GROUP BY COALESCE(NULLIF(author_login, ''), author, 'Unknown')
+        ORDER BY total_commits DESC
+    """).fetchall()
+
+    # TOTAL GITHUB COMMITS
     total_github_commits = conn.execute("""
         SELECT COUNT(*) FROM github_commits
     """).fetchone()[0]
@@ -145,7 +158,8 @@ def index():
         date_labels=date_labels,
         daily_counts=daily_counts,
         github_commits=github_commits,
-        total_github_commits=total_github_commits
+        total_github_commits=total_github_commits,
+        github_member_counts=github_member_counts
     )
 
 
@@ -167,6 +181,7 @@ def add_member():
         )
         conn.commit()
         flash("Team member added successfully!")
+
     except sqlite3.IntegrityError:
         flash("This team member already exists.")
 
@@ -204,6 +219,7 @@ def add_contribution():
 
     if member is None:
         flash("Selected team member does not exist.")
+
     else:
         created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -240,7 +256,7 @@ def sync_github():
     owner = request.form.get("owner", "").strip()
     repo = request.form.get("repo", "").strip()
 
-    # Basic validation of repository details
+    # Validate repository details
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", owner) or not re.fullmatch(
         r"[A-Za-z0-9_.-]+", repo
     ):

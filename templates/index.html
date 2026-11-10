@@ -25,13 +25,14 @@
 
         <a href="/" class="nav active">▦ &nbsp; Overview</a>
         <a href="#github" class="nav">⌘ &nbsp; GitHub Commits</a>
+        <a href="#github-contributors" class="nav">♙ &nbsp; GitHub Contributors</a>
         <a href="#graphs" class="nav">⌘ &nbsp; Contribution Graph</a>
         <a href="#members" class="nav">♙ &nbsp; Team Members</a>
         <a href="#history" class="nav">◷ &nbsp; Activity History</a>
 
         <div class="sidebar-bottom">
             <p>PROJECT TRACKER</p>
-            <small>TeamTrace MVP 1.1</small>
+            <small>TeamTrace MVP 1.2</small>
         </div>
     </aside>
 
@@ -142,6 +143,7 @@
                         <tr>
                             <td>
                                 <strong>{{ commit.author }}</strong>
+
                                 {% if commit.author_login %}
                                     <small class="description">
                                         @{{ commit.author_login }}
@@ -149,9 +151,7 @@
                                 {% endif %}
                             </td>
 
-                            <td>
-                                {{ commit.message }}
-                            </td>
+                            <td>{{ commit.message }}</td>
 
                             <td>{{ commit.committed_at }}</td>
 
@@ -177,6 +177,62 @@
         </section>
 
 
+        <!-- GITHUB CONTRIBUTORS -->
+        <section id="github-contributors" class="panel history-panel">
+
+            <h2>GitHub Contributors</h2>
+
+            <p class="muted">
+                Contribution summary based on actual GitHub commits.
+            </p>
+
+            {% if github_member_counts %}
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Contributor</th>
+                            <th>Total Commits</th>
+                            <th>Latest Activity</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for member in github_member_counts %}
+                        <tr>
+                            <td>#{{ loop.index }}</td>
+
+                            <td>
+                                <strong>{{ member.contributor }}</strong>
+                            </td>
+
+                            <td>
+                                <span class="category">
+                                    {{ member.total_commits }} commits
+                                </span>
+                            </td>
+
+                            <td>{{ member.last_commit }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% else %}
+
+                <p class="empty">
+                    No GitHub contributor information available.
+                    Sync your repository first.
+                </p>
+
+            {% endif %}
+
+        </section>
+
+
         <!-- ADD FORMS -->
         <section class="forms">
 
@@ -185,6 +241,7 @@
                 <p class="muted">Add a person to your project.</p>
 
                 <form action="/add-member" method="POST">
+
                     <input
                         type="text"
                         name="name"
@@ -193,6 +250,7 @@
                     >
 
                     <button type="submit">+ Add Member</button>
+
                 </form>
             </div>
 
@@ -289,10 +347,12 @@
             <p class="muted">Contribution summary of every member.</p>
 
             {% if member_counts %}
+
                 <div class="member-list">
 
                     {% for member in member_counts %}
                     <div class="member-row">
+
                         <div class="member-avatar">
                             {{ member.name[0] | upper }}
                         </div>
@@ -305,10 +365,12 @@
                         <strong class="count">
                             {{ member.total }} contributions
                         </strong>
+
                     </div>
                     {% endfor %}
 
                 </div>
+
             {% else %}
                 <p class="empty">No team members added yet.</p>
             {% endif %}
@@ -357,7 +419,6 @@
                         </tr>
                         {% endfor %}
                     </tbody>
-
                 </table>
             </div>
 
@@ -366,6 +427,7 @@
             {% endif %}
 
         </section>
+
 
         <footer>
             TeamTrace © 2026 | Project Contribution Tracker
