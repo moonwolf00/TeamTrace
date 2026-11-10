@@ -2,12 +2,22 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 import sqlite3
 import os
-from datetime import datetime, timedelta
+import re
+import requests
 
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# Load secret values from .env
+load_dotenv()
+
+# TeamTrace GitHub Integration
 app = Flask(__name__)
 app.secret_key = "teamtrace_mvp_secret"
 
 DATABASE = os.path.join(os.path.dirname(__file__), "teamtrace.db")
+
+GITHUB_API = "https://api.github.com"
 
 
 # DATABASE CONNECTION
@@ -37,6 +47,19 @@ def init_db():
             category TEXT NOT NULL,
             created_at TEXT NOT NULL,
             FOREIGN KEY (member_id) REFERENCES members(id)
+        )
+    """)
+
+    # Store GitHub commits
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS github_commits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sha TEXT NOT NULL UNIQUE,
+            author TEXT,
+            author_login TEXT,
+            message TEXT,
+            committed_at TEXT,
+            html_url TEXT
         )
     """)
 
@@ -99,6 +122,17 @@ def index():
             daily_map.get(current_date.isoformat(), 0)
         )
 
+    # GET SAVED GITHUB COMMITS
+    github_commits = conn.execute("""
+        SELECT * FROM github_commits
+        ORDER BY committed_at DESC
+        LIMIT 20
+    """).fetchall()
+
+    total_github_commits = conn.execute("""
+        SELECT COUNT(*) FROM github_commits
+    """).fetchone()[0]
+
     conn.close()
 
     return render_template(
@@ -109,7 +143,9 @@ def index():
         total_members=total_members,
         total_contributions=total_contributions,
         date_labels=date_labels,
-        daily_counts=daily_counts
+        daily_counts=daily_counts,
+        github_commits=github_commits,
+        total_github_commits=total_github_commits
     )
 
 
@@ -187,6 +223,116 @@ def add_contribution():
         flash("Contribution recorded successfully!")
 
     conn.close()
+
+    return redirect(url_for("index"))
+
+
+# SYNC GITHUB COMMITS
+@app.route("/sync-github", methods=["POST"])
+def sync_github():
+
+    token = os.getenv("GITHUB_TOKEN")
+
+    if not token:
+        flash("GitHub token not found. Check your .env file.")
+        return redirect(url_for("index"))
+
+    owner = request.form.get("owner", "").strip()
+    repo = request.form.get("repo", "").strip()
+
+    # Basic validation of repository details
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", owner) or not re.fullmatch(
+        r"[A-Za-z0-9_.-]+", repo
+    ):
+        flash("Please enter valid GitHub owner and repository names.")
+        return redirect(url_for("index"))
+
+    url = f"{GITHUB_API}/repos/{owner}/{repo}/commits"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+    }
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            params={"per_page": 100},
+            timeout=20
+        )
+
+        if response.status_code == 401:
+            flash("GitHub token is invalid or expired. Check your token.")
+            return redirect(url_for("index"))
+
+        if response.status_code == 403:
+            flash("GitHub access denied. Check your token permissions.")
+            return redirect(url_for("index"))
+
+        if response.status_code == 404:
+            flash("Repository not found. Check the owner and repository name.")
+            return redirect(url_for("index"))
+
+        response.raise_for_status()
+
+        commits = response.json()
+
+        if not isinstance(commits, list):
+            flash("GitHub returned an unexpected response.")
+            return redirect(url_for("index"))
+
+        conn = get_db()
+        new_commits = 0
+
+        for item in commits:
+            commit_data = item.get("commit", {})
+            author_data = commit_data.get("author") or {}
+            github_author = item.get("author") or {}
+
+            author_name = author_data.get("name") or "Unknown"
+            author_login = github_author.get("login") or ""
+            message = commit_data.get("message") or "No commit message"
+            committed_at = author_data.get("date") or ""
+            sha = item.get("sha")
+            html_url = item.get("html_url") or ""
+
+            if not sha:
+                continue
+
+            cursor = conn.execute("""
+                INSERT OR IGNORE INTO github_commits
+                (sha, author, author_login, message, committed_at, html_url)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                sha,
+                author_name,
+                author_login,
+                message,
+                committed_at,
+                html_url
+            ))
+
+            new_commits += cursor.rowcount
+
+        conn.commit()
+        conn.close()
+
+        flash(
+            f"GitHub sync successful! "
+            f"{new_commits} new commits added. "
+            f"Repository: {owner}/{repo}"
+        )
+
+    except requests.exceptions.Timeout:
+        flash("GitHub took too long to respond. Please try again.")
+
+    except requests.exceptions.RequestException:
+        flash("Could not connect to GitHub. Check your internet connection.")
+
+    except ValueError:
+        flash("Could not read GitHub's response.")
 
     return redirect(url_for("index"))
 
